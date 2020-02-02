@@ -4,7 +4,14 @@ using MahApps.Metro.IconPacks;
 using Microsoft.Maps.MapControl.WPF;
 using Microsoft.Win32;
 using Microsoft.WindowsAPICodePack.Dialogs;
-using Novatek;
+
+// TODO introduce Novatekfile interface and switch implementation via factory via settings?
+
+// TODO add some camera type switch...
+//using Novatek;
+using Mai70; // out placeholder hack..
+
+
 using Novatek.Core;
 using NovaTrakt.Classes;
 using NovaTrakt.Classes.Helpers;
@@ -167,10 +174,13 @@ namespace NovaTrakt.ViewModel
                 if (_selectedTrip != value)
                 {
                     _selectedTrip = value;
-                    _journeyList.Where(c => c.Selected == true).ToList().ForEach(a => a.Selected = false);
-                    _journeyList.Where(c => c.StartTime == value.StartTime).ToList().ForEach(a => a.Selected = true);
-                    if (!string.IsNullOrEmpty(_selectedTrip.CurrentClip.FullNameAndPath))
-                        CurrentPlayer.Source = new Uri(_selectedTrip.CurrentClip.FullNameAndPath);
+                    if (_selectedTrip != null)
+                    {
+                        _journeyList.Where(c => c.Selected == true).ToList().ForEach(a => a.Selected = false);
+                        _journeyList.Where(c => c.StartTime == value.StartTime).ToList().ForEach(a => a.Selected = true);
+                        if (!string.IsNullOrEmpty(_selectedTrip.CurrentClip.FullNameAndPath))
+                            CurrentPlayer.Source = new Uri(_selectedTrip.CurrentClip.FullNameAndPath);
+                    }
                     OnPropertyChanged("SelectedTrip");
                 }
             }
@@ -923,6 +933,8 @@ namespace NovaTrakt.ViewModel
             {
                 Log.WriteLine("Info", "Loading file " + file);
                 FileInfo fileInfo = new FileInfo(file);
+
+                // TODO add some switching between Novatek and 70mai
                 NovatekFile _file = new NovatekFile(fileInfo.DirectoryName, fileInfo.Name);
 
                 if (_file.MoovBox != 0)
@@ -1072,15 +1084,17 @@ namespace NovaTrakt.ViewModel
                 {
                     Journey j = new Journey();
 
+                    // we probably always know the start time (timestamp, filename)
+                    j.StartTime = D.StartTime;
+                    j._clips.Add(D);
+
                     if (D.ValidGPS && D.GPSData != null)
                     {
                         // Retrieve the start town
                         await D.SetStartTown();
 
-                        j.StartTime = D.StartTime;
                         j.StartTown = D.StartTown;
                         j.Distance = D.Distance;
-                        j._clips.Add(D);
 
                         foreach (GPSData gps in D.GPSData)
                         {
@@ -1103,6 +1117,13 @@ namespace NovaTrakt.ViewModel
                             j.EndTime = D.EndTime;
                         }
                     }
+                    else
+                    {
+                        if (string.IsNullOrEmpty(D.NextFile))
+                        {
+                            j.EndTime = D.EndTime;
+                        }
+                    }
 
                     await Application.Current.Dispatcher.BeginInvoke(new Action(() => _journeyList.Add(j)));
                 }
@@ -1114,29 +1135,31 @@ namespace NovaTrakt.ViewModel
                     {
                         if (j.Clips.Contains(c))
                         {
-                            j.Distance = (j.Distance + D.Distance);
                             j._clips.Add(D);
 
-                            foreach (GPSData gps in D.GPSData)
+                            if (D.ValidGPS && D.GPSData != null)
                             {
-                                j.GPSLocationsFiltered.Add(new Location(gps.Latitude, gps.Longitude));
-                            }
-                            foreach (GPSData gps in D.AllGPSData)
-                            {
-                                j.GPSData.Add(gps);
-                                j.GPSLocations.Add(new Location(gps.Latitude, gps.Longitude));
-                            }
+                                j.Distance = (j.Distance + D.Distance);
 
-                            if (string.IsNullOrEmpty(D.NextFile))
-                            {
-                                // Retrieve the end town
-                                await D.SetEndTown();
+                                foreach (GPSData gps in D.GPSData)
+                                {
+                                    j.GPSLocationsFiltered.Add(new Location(gps.Latitude, gps.Longitude));
+                                }
+                                foreach (GPSData gps in D.AllGPSData)
+                                {
+                                    j.GPSData.Add(gps);
+                                    j.GPSLocations.Add(new Location(gps.Latitude, gps.Longitude));
+                                }
 
-                                if (D.ValidGPS)
+                                if (string.IsNullOrEmpty(D.NextFile))
+                                {
+                                    // Retrieve the end town
+                                    await D.SetEndTown();
                                     j.EndTown = D.EndTown;
-
-                                j.EndTime = D.EndTime;
+                                }
                             }
+
+                            j.EndTime = D.EndTime;
                         }
                     }
                 }
