@@ -1,5 +1,9 @@
 ﻿using Microsoft.Maps.MapControl.WPF;
-using Novatek;
+
+// TODO add some camera type switch...
+//using Novatek;
+using Mai70; // out placeholder hack..
+
 using Novatek.Core;
 using NovaTrakt.Classes.Helpers;
 using NovaTrakt.SharedComponents;
